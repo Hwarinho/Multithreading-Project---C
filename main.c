@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 700
+
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -11,6 +13,7 @@
 #include <ctype.h>
 #include<pthread.h>
 #include <errno.h>
+
 
 #define ADDRESS "127.0.0.1"
 
@@ -32,11 +35,14 @@ int main(int argc, char *argv[]) {
     if(argc < 2)
     {
         printf("Directory name missing!\n");
-        return -1;
+        exit(EXIT_FAILURE);
     }else if(argc < 3)
     {
-        printf("Port missing");
-        return -1;
+        printf("Port missing\n");
+        exit(EXIT_FAILURE);
+    } else if (!isdigit(argv[2][0])){
+        printf("Port entered is not a number.\n");
+        exit(EXIT_FAILURE);
     }
     port = atoi(argv[2]);
     directory = argv[1];
@@ -62,8 +68,12 @@ int main(int argc, char *argv[]) {
             printf("%s\n",  directory_list[i]);
         }
     }
+
     //Create the socket.
-    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        perror("ERROR opening socket");
+        exit(EXIT_FAILURE);
+    }
 
     // Configure settings of the server address struct
     // Address family = Internet
@@ -85,12 +95,16 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    //Listen on the socket, with 40 max connection requests queued
-    if(listen(serverSocket,50)==0)
+    // Here the process will go in sleep mode and will wait/listen for the incoming connections from clients.
+    // Listen on the socket, with 40 max connection requests queued
+    if(listen(serverSocket,50) == -1){
+        perror("listen");
+        exit(EXIT_FAILURE);
+    } else{
         printf("Listening\n");
-    else
-        printf("Error\n");
-    pthread_t tid[60];
+    }
+
+    pthread_t tid[60]; // the thread ID array.
     i = 0;
     while(1)
     {
@@ -201,17 +215,14 @@ void * socketThread(void *arg) {
         //    fputs(client_message,stdout);
     //}
 
-
     sleep(5);
-    //send(newSocket,buffer,13,0);
-    //printf("Closing socket, and exiting Thread \n");
-    //close(newSocket);
     close_connection(newSocket);
     pthread_exit(NULL);
 
 }
 
 void close_connection(int socket){
+    // Close the socket with a message to client and return to main thread handler to close and rejoin the thread.
     printf("Closing socket, and exiting Thread \n");
     char * Closing = "Terminating session.\n";
     if(send(socket, Closing, strlen(Closing), 0) == -1){
