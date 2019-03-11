@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include<pthread.h>
+#include <errno.h>
+
 #define ADDRESS "127.0.0.1"
 
 char client_message[2000];
@@ -20,7 +22,7 @@ void * socketThread(void *arg);
 int port;
 const char* directory;
 char directory_list[20][1024]; // max directory list of 20 element strings, with size 1024 ea.
-
+void close_connection(int socket);
 
 
 
@@ -172,16 +174,16 @@ int read_directory(const char* directory){
 
 
 void * socketThread(void *arg) {
-    char * Hello = "Hello from Server!";
+    //char * Hello = "Hello from Server!";
     int newSocket = *((int *)arg);
     int server_read;
     // Send message to the client socket
 
-    printf("Connected to client <-----");
-    send(newSocket, Hello,strlen(server_message),0);
+    //printf("Connected to client <-----");
+    //send(newSocket, Hello,strlen(server_message),0);
 
     if((server_read = read(newSocket, client_message, 20000) != 0)) {
-        printf("%s", client_message);
+        printf("Client Message: %s\n", client_message);
     }
    // while(strncmp(client_message, "00", 2) > 2)
     //{
@@ -194,16 +196,26 @@ void * socketThread(void *arg) {
 
 
         //if (recv(newSocket,client_message,2000,0) == 0)
-            printf("Error");
+            //printf("Error in Recv--\n");
        // else
         //    fputs(client_message,stdout);
     //}
 
 
     sleep(5);
-    send(newSocket,buffer,13,0);
-    printf("Exit socket Thread \n");
-    close(newSocket);
+    //send(newSocket,buffer,13,0);
+    //printf("Closing socket, and exiting Thread \n");
+    //close(newSocket);
+    close_connection(newSocket);
     pthread_exit(NULL);
 
+}
+
+void close_connection(int socket){
+    printf("Closing socket, and exiting Thread \n");
+    char * Closing = "Terminating session.\n";
+    if(send(socket, Closing, strlen(Closing), 0) == -1){
+        printf("Error: %s\n", strerror(errno));
+    }
+    close(socket);
 }
