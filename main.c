@@ -14,6 +14,7 @@
 #include<pthread.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <math.h>
 //#include <linux/list.h>
 
 
@@ -25,12 +26,14 @@ char buffer[1024];
 int read_directory(const char* directory);
 void * socketThread(void *arg);
 int port;
+int number_of_files = 0;
 const char* directory;
-char directory_list[20][1024]; // max directory list of 20 element strings, with size 1024 ea.
+char directory_list[30][1024]; // max directory list of 20 element strings, with size 1024 ea.
 void close_connection(int socket);
+
+int list_repository(int socket_id);
 bool quit_flag_client = false;
 bool quit_flag_server = false;
-
 
 
 
@@ -66,11 +69,8 @@ int main(int argc, char *argv[]) {
     {
         printf("We got a directory error read");
     }
-    for ( i=0; i < 20; i++){
-        if (strncmp(directory_list[i],"0", 1) != 0) {
-            printf("%s\n",  directory_list[i]);
-        }
-    }
+
+
     //Create the socket.
     if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("ERROR opening socket");
@@ -178,6 +178,7 @@ int read_directory(const char* directory){
             i++;
         }
         closedir(d);
+        number_of_files = i;
     }else{
         perror("Couldn't open directory");
         return -1;
@@ -193,20 +194,26 @@ void * socketThread(void *arg) {
     fflush(stdin);
 
     while (!quit_flag_client){
-
         if((read(newSocket, client_message, 20000) != 0)) {
             printf("Client Message: %s\n", client_message);
         }else{
             perror("error in reading client message!");
             exit(EXIT_FAILURE);
         }
+        fflush(stdout);
+        fflush(stdin);
         // TODO client message preprocessing for instruction list.
         //strcpy(client_message, strtok(client_message, "\n")); //for stripping null term
 
         if (strncmp(client_message, "0x08", 4) != 0){
             if (strncmp(client_message, "0x00", 4) == 0){
-                fprintf(stdout, "printing directory\n");
+                fprintf(stdout, "--printing directory---\n");
                 // function to print out directory, server response code 0x01
+                if (list_repository(newSocket)) {  // directory_list is a global list.
+                    fprintf(stdout, "No Error");
+                } else {
+                    fprintf(stdout, "was a error");
+                }
                 continue;
             }else if(strncmp(client_message, "0x02", 4) == 0){
                 fprintf(stdout, "Client is uploading file\n");
@@ -251,4 +258,34 @@ void close_connection(int socket){
         printf("Error: %s\n", strerror(errno));
     }
     close(socket);
+}
+
+int list_repository(int socket_id) {
+
+    // used from https://stackoverflow.com/questions/8257714/how-to-convert-an-int-to-string-in-c to get int to string concat.
+    int length = snprintf(NULL, 0, "%d", number_of_files);
+    char *str = malloc((size_t) (length + 1));
+    snprintf(str, length + 1, "%d", number_of_files);
+
+    fprintf(stdout, "%d--number of files\n", number_of_files);
+    char string[1000] = "";
+    strcat(string, "0x01 ");
+    strcat(string, str);
+    strcat(string, " ");
+    free(str);
+    char *buffer2;
+    for (int i = 0; i < number_of_files; i++) {
+        if (strncmp(directory_list[i], "0", 1) != 0) {
+            printf("%s\n", directory_list[i]);
+            buffer2 = malloc(sizeof(buffer2) + sizeof(directory_list[i]) + 1);
+            strcpy(buffer2, directory_list[i]);
+            strcat(buffer2, " ");
+            strcat(string, buffer2);
+        }
+    }
+    free(buffer2);
+    printf("String so far: %s\n", string);
+    strcpy(server_message, string);
+    send(socket_id, server_message, 2000, 0);
+    return 1;
 }
