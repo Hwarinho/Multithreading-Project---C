@@ -13,6 +13,8 @@
 #include <ctype.h>
 #include<pthread.h>
 #include <errno.h>
+#include <stdbool.h>
+//#include <linux/list.h>
 
 
 #define ADDRESS "127.0.0.1"
@@ -26,6 +28,9 @@ int port;
 const char* directory;
 char directory_list[20][1024]; // max directory list of 20 element strings, with size 1024 ea.
 void close_connection(int socket);
+bool quit_flag_client = false;
+bool quit_flag_server = false;
+
 
 
 
@@ -55,46 +60,36 @@ int main(int argc, char *argv[]) {
     for (i=0; i < (sizeof( directory_list ) / sizeof( directory_list[0])); i++){
         strcpy(directory_list[i],"0");
     }
-
     printf("Port #: %d\n", port);int d;
     d = read_directory(directory);
     if (d != 0)
     {
         printf("We got a directory error read");
     }
-
     for ( i=0; i < 20; i++){
-        if (strncmp(directory_list[i],"0", 1) != 0){
+        if (strncmp(directory_list[i],"0", 1) != 0) {
             printf("%s\n",  directory_list[i]);
         }
     }
-
     //Create the socket.
-    if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+    if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("ERROR opening socket");
         exit(EXIT_FAILURE);
     }
-
     // Configure settings of the server address struct
     // Address family = Internet
     serverAddr.sin_family = AF_INET;
-
     //Set port number, using htons function to use proper byte order
     serverAddr.sin_port = htons(port);
-
     //Set IP address to localhost
     serverAddr.sin_addr.s_addr = inet_addr(ADDRESS);
-
     //Set all bits of the padding field to 0
     memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);
-
     //Bind the address struct to the socket
-    if (bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)))
-    {
+    if (bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr))) {
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
-
     // Here the process will go in sleep mode and will wait/listen for the incoming connections from clients.
     // Listen on the socket, with 40 max connection requests queued
     if(listen(serverSocket,50) == -1){
@@ -106,7 +101,7 @@ int main(int argc, char *argv[]) {
 
     pthread_t tid[60]; // the thread ID array.
     i = 0;
-    while(1)
+    while(!quit_flag_server)
     {
         //Accept call creates a new socket for the incoming connection
         addr_size = sizeof serverStorage;
@@ -120,7 +115,9 @@ int main(int argc, char *argv[]) {
         if( newSocket >= 0)
         {
             printf("user number %d \n", i);
-            printf("Client is connected via socket: %d, starting new thread", newSocket);
+            printf("Client is connected via socket: %d, starting new thread\n", newSocket);
+            fflush(stdout);
+            // as soon as client sends a message a new thread is made to deal with the request and the server goes back into sleep mode.
             if( pthread_create(&tid[i], NULL, socketThread, &newSocket) != 0 )
                 printf("Failed to create thread\n");
             i++;
@@ -151,6 +148,8 @@ int main(int argc, char *argv[]) {
         return -1;
     }
      **/
+
+    // TODO kill threads and join, then grab and save state of XML for file struct. Then quit.
     return 0;
 
 }
@@ -188,39 +187,62 @@ int read_directory(const char* directory){
 
 
 void * socketThread(void *arg) {
-    //char * Hello = "Hello from Server!";
     int newSocket = *((int *)arg);
-    int server_read;
     // Send message to the client socket
+    fflush(stdout);
+    fflush(stdin);
 
-    //printf("Connected to client <-----");
-    //send(newSocket, Hello,strlen(server_message),0);
+    while (!quit_flag_client){
 
-    if((server_read = read(newSocket, client_message, 20000) != 0)) {
-        printf("Client Message: %s\n", client_message);
+        if((read(newSocket, client_message, 20000) != 0)) {
+            printf("Client Message: %s\n", client_message);
+        }else{
+            perror("error in reading client message!");
+            exit(EXIT_FAILURE);
+        }
+        // TODO client message preprocessing for instruction list.
+        //strcpy(client_message, strtok(client_message, "\n")); //for stripping null term
+
+        if (strncmp(client_message, "0x08", 4) != 0){
+            if (strncmp(client_message, "0x00", 4) == 0){
+                fprintf(stdout, "printing directory\n");
+                // function to print out directory, server response code 0x01
+                continue;
+            }else if(strncmp(client_message, "0x02", 4) == 0){
+                fprintf(stdout, "Client is uploading file\n");
+                //function for handling upload and file checking. server response code 0x03
+
+                continue;
+            }else if (strncmp(client_message, "0x04", 4) == 0){
+                fprintf(stdout, "Client wants to delete a file\n");
+                // function to delete file and server response code 0x05
+
+                continue;
+            }else if(strncmp(client_message, "0x06", 4) == 0){
+                fprintf(stdout, "Client wants to download a file\n");
+                // function to delete file and server response code 0x07
+                continue;
+            }
+        }else{
+            fprintf(stdout,"Client message was quit\n");
+            send(newSocket, "0x09", 4,0);
+            quit_flag_client = true;
+            continue;
+        }
     }
-   // while(strncmp(client_message, "00", 2) > 2)
-    //{
-        //for (int i =0; i < 20; i++) {
-            //if (strncmp(directory_list[i], "0",1) != 0){
-                //if (send(newSocket, Hello,strlen(server_message),0) == -1)
-                  //  printf("error in sending");
-           // }
-       // }
 
 
-        //if (recv(newSocket,client_message,2000,0) == 0)
-            //printf("Error in Recv--\n");
-       // else
-        //    fputs(client_message,stdout);
-    //}
-
-    sleep(5);
+    sleep(2);
     close_connection(newSocket);
+    quit_flag_client = false;
     pthread_exit(NULL);
 
 }
 
+/**
+ * Safe Close given socket.
+ * @param socket
+ */
 void close_connection(int socket){
     // Close the socket with a message to client and return to main thread handler to close and rejoin the thread.
     printf("Closing socket, and exiting Thread \n");
