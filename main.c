@@ -188,7 +188,13 @@ void * socketThread(void *arg) {
         fflush(stdin);
         // TODO client message preprocessing for instruction list.
         //strcpy(client_message, strtok(client_message, "\n")); //for stripping null term
+        // As of Now it can recognize the commands with other text.
 
+        if (strncmp(client_message, "0x", 2) != 0) {
+            if ((send(newSocket, "0xFF Invalid Command\n", 22, 0)) == -1) {
+                fprintf(stdout, "error in sending");
+            }
+        }
         if (strncmp(client_message, "0x08", 4) != 0){
             if (strncmp(client_message, "0x00", 4) == 0){
                 fprintf(stdout, "--printing directory---\n");
