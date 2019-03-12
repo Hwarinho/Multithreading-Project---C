@@ -194,38 +194,39 @@ void * socketThread(void *arg) {
             if ((send(newSocket, "0xFF Invalid Command\n", 22, 0)) == -1) {
                 fprintf(stdout, "error in sending");
             }
-        }
-        if (strncmp(client_message, "0x08", 4) != 0){
-            if (strncmp(client_message, "0x00", 4) == 0){
-                fprintf(stdout, "--printing directory---\n");
-                // function to print out directory, server response code 0x01
-                if ((list_repository(newSocket)) > 0) {  // directory_list is a global list.
-                    fprintf(stdout, "No Error");
-                } else {
-                    // server response for 0xFF and error in sending repo list.
-                    fprintf(stdout, "was a error");
+        } else {
+            if (strncmp(client_message, "0x08", 4) != 0) {
+                if (strncmp(client_message, "0x00", 4) == 0) {
+                    fprintf(stdout, "--printing directory---\n");
+                    // function to print out directory, server response code 0x01
+                    if ((list_repository(newSocket)) > 0) {  // directory_list is a global list.
+                        fprintf(stdout, "No Error");
+                    } else {
+                        // server response for 0xFF and error in sending repo list.
+                        fprintf(stdout, "was a error");
+                    }
+                    continue;
+                } else if (strncmp(client_message, "0x02", 4) == 0) {
+                    fprintf(stdout, "Client is uploading file\n");
+                    //function for handling upload and file checking. server response code 0x03
+
+                    continue;
+                } else if (strncmp(client_message, "0x04", 4) == 0) {
+                    fprintf(stdout, "Client wants to delete a file\n");
+                    // function to delete file and server response code 0x05
+
+                    continue;
+                } else if (strncmp(client_message, "0x06", 4) == 0) {
+                    fprintf(stdout, "Client wants to download a file\n");
+                    // function to delete file and server response code 0x07
+                    continue;
                 }
-                continue;
-            }else if(strncmp(client_message, "0x02", 4) == 0){
-                fprintf(stdout, "Client is uploading file\n");
-                //function for handling upload and file checking. server response code 0x03
-
-                continue;
-            }else if (strncmp(client_message, "0x04", 4) == 0){
-                fprintf(stdout, "Client wants to delete a file\n");
-                // function to delete file and server response code 0x05
-
-                continue;
-            }else if(strncmp(client_message, "0x06", 4) == 0){
-                fprintf(stdout, "Client wants to download a file\n");
-                // function to delete file and server response code 0x07
+            } else {
+                fprintf(stdout, "Client message was quit\n");
+                send(newSocket, "0x09", 4, 0);
+                quit_flag_client = true;
                 continue;
             }
-        }else{
-            fprintf(stdout,"Client message was quit\n");
-            send(newSocket, "0x09", 4,0);
-            quit_flag_client = true;
-            continue;
         }
     }
 
