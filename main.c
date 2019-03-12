@@ -260,7 +260,7 @@ void close_connection(int socket){
 int list_repository(int socket_id) {
     // used from https://stackoverflow.com/questions/8257714/how-to-convert-an-int-to-string-in-c to get int to string concat.
     int length = snprintf(NULL, 0, "%d", number_of_files);
-    char *str = malloc((size_t) (length + 1));
+    char *str = malloc((size_t) sizeof((length + 1)));
     snprintf(str, length + 1, "%d", number_of_files);
     fprintf(stdout, "%d--number of files\n", number_of_files);
     char string[1000] = "";
@@ -268,7 +268,7 @@ int list_repository(int socket_id) {
     strcat(string, str);
     strcat(string, " ");
     free(str);
-    char *buffer2;
+    char *buffer2 = NULL;
     for (int i = 0; i < number_of_files; i++) {
         if (strncmp(directory_list[i], "0", 1) != 0) {
             printf("%s\n", directory_list[i]);
