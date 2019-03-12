@@ -63,13 +63,11 @@ int main(int argc, char *argv[]) {
     for (i=0; i < (sizeof( directory_list ) / sizeof( directory_list[0])); i++){
         strcpy(directory_list[i],"0");
     }
-    printf("Port #: %d\n", port);int d;
-    d = read_directory(directory);
-    if (d != 0)
-    {
+    printf("Port #: %d\n", port);
+
+    if ((read_directory(directory)) < 0) {
         printf("We got a directory error read");
     }
-
 
     //Create the socket.
     if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -136,19 +134,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /**
-    // read directory.
-    printf("arg 1 -> %s\narg2 -> %s\narg3 -> %s\n", argv[0],argv[1], argv[2]);
-    printf("Port #: %d\n", port);
-    int d;
-    d = read_directory(argv[1]);
-    if (d != 0)
-    {
-        printf("We got a directory error read");
-        return -1;
-    }
-     **/
-
     // TODO kill threads and join, then grab and save state of XML for file struct. Then quit.
     return 0;
 
@@ -173,14 +158,13 @@ int read_directory(const char* directory){
             if (strcmp (dir->d_name, "..") == 0){
                 continue;
             }
-            //printf("%s\n", dir->d_name);
             strcpy(directory_list[i], dir->d_name);
             i++;
         }
         closedir(d);
         number_of_files = i;
     }else{
-        perror("Couldn't open directory");
+        // Couldn't open directory asked.
         return -1;
     }
     return 0;
