@@ -209,9 +209,10 @@ void * socketThread(void *arg) {
             if (strncmp(client_message, "0x00", 4) == 0){
                 fprintf(stdout, "--printing directory---\n");
                 // function to print out directory, server response code 0x01
-                if (list_repository(newSocket)) {  // directory_list is a global list.
+                if ((list_repository(newSocket)) > 0) {  // directory_list is a global list.
                     fprintf(stdout, "No Error");
                 } else {
+                    // server response for 0xFF and error in sending repo list.
                     fprintf(stdout, "was a error");
                 }
                 continue;
@@ -260,13 +261,16 @@ void close_connection(int socket){
     close(socket);
 }
 
+/**
+ * gather directery and combine them into the required string to send as on message. 0x01 | N | filename1 |\0| filename2 |\0| ... | filenameN |\0|.
+ * @param socket_id the socket to send directory list to.
+ * @return success or errors based on errno or ints.
+ */
 int list_repository(int socket_id) {
-
     // used from https://stackoverflow.com/questions/8257714/how-to-convert-an-int-to-string-in-c to get int to string concat.
     int length = snprintf(NULL, 0, "%d", number_of_files);
     char *str = malloc((size_t) (length + 1));
     snprintf(str, length + 1, "%d", number_of_files);
-
     fprintf(stdout, "%d--number of files\n", number_of_files);
     char string[1000] = "";
     strcat(string, "0x01 ");
@@ -286,6 +290,9 @@ int list_repository(int socket_id) {
     free(buffer2);
     printf("String so far: %s\n", string);
     strcpy(server_message, string);
-    send(socket_id, server_message, 2000, 0);
+    if ((send(socket_id, server_message, 2000, 0)) == -1) {
+        //error in sending.
+        return -1;
+    }
     return 1;
 }
