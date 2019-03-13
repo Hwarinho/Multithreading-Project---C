@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
         } else if (strncmp(client_message, "d ", 2) == 0) {
             char string[1000] = "";
             char *filename;
-            strcat(string, "0x04 ");
+            strcat(string, "0x06 ");
             memmove(client_message, client_message + 1, strlen(client_message));
             while (strncmp(client_message, " ", 1) == 0) {
                 memmove(client_message, client_message + 1, strlen(client_message));
@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
             /////////////////////////////////
         } else if (strncmp(client_message, "r ", 2) == 0) {
             char string[1000] = "";
-            strcat(string, "0x06 ");
+            strcat(string, "0x04 ");
             memmove(client_message, client_message + 1, strlen(client_message));
             while (strncmp(client_message, " ", 1) == 0) {
                 memmove(client_message, client_message + 1, strlen(client_message));

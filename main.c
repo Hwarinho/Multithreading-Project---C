@@ -18,7 +18,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <openssl/md5.h> 
+//#include <openssl/md5.h>
 //#include <sys/sendfile.h>
 //#include <linux/list.h>
 
@@ -191,7 +191,7 @@ void * socketThread(void *arg) {
 
     while (!quit_flag_client){
         if((read(newSocket, client_message, 20000) != 0)) {
-            printf("Client Message: %s\n", client_message);
+            printf("Client Message:-%s-\n", client_message);
         }else{
             perror("error in reading client message!");
             exit(EXIT_FAILURE);
@@ -208,6 +208,7 @@ void * socketThread(void *arg) {
             }
         } else {
             if (strncmp(client_message, "0x08", 4) != 0) {
+//----------------------------- LIST --------------------------------------------------//
                 if (strncmp(client_message, "0x00", 4) == 0) {
                     fprintf(stdout, "--printing directory---\n");
                     // function to print out directory, server response code 0x01
@@ -218,10 +219,9 @@ void * socketThread(void *arg) {
                         fprintf(stdout, "was a error");
                     }
                     continue;
+//----------------------------- UPLOAD --------------------------------------------------//
                 } else if (strncmp(client_message, "0x02", 4) == 0) {
                     fprintf(stdout, "Client is uploading file\n");
-
-
                     filefd = open(file_path,
                                   O_WRONLY | O_CREAT | O_TRUNC,
                                   S_IRUSR | S_IWUSR);
@@ -241,40 +241,34 @@ void * socketThread(void *arg) {
                         }
                     } while (read_return > 0);
                     close(filefd);
+
                     //ALL CAPS THIS IS WHERE THE MD5HASH IS LOOK FOR IT HERE
-                    md5Hash(file_path);
+                    //md5Hash(file_path);
 
                     //function for handling upload and file checking. server response code 0x03
-
                     continue;
+//----------------------------- Delete --------------------------------------------------//
                 } else if (strncmp(client_message, "0x04", 4) == 0) {
-                    fprintf(stdout, "Client wants to download a file\n");
+                    fprintf(stdout, "Client wants to delete a file\n");
                     // function to delete file and server response code 0x05
+                    continue;
+//----------------------------- DOWNLOAD --------------------------------------------------//
+                } else if (strncmp(client_message, "0x06", 4) == 0) {
+                    fprintf(stdout, "Client wants to download a file\n");
+                    // -- Lock might go here.----
+                    // need to send it as: 0x07 | size | contents|
                     char *filename;
 
                     memmove(client_message, client_message + 5, strlen(client_message));
                     filename = strtok(client_message, "\n");
                     filename = strtok(filename, " ");
-                    //filename = strtok(client_message, "0x04 ");
-                    //filename = strtok(filename, " ");
-
-                    printf("This is the client message --- need filename: %s\n", filename);
                     upload_file(newSocket, filename);
-
                     close(newSocket);
                     exit(EXIT_SUCCESS);
                     continue;
-                } else if (strncmp(client_message, "0x06", 4) == 0) {
-                    fprintf(stdout, "Client wants to delete a file\n");
-
-
-
-
-
-                    continue;
-                    //close(client_sockfd);
                 }
             } else {
+//----------------------------- QUIT --------------------------------------------------//
                 fprintf(stdout, "Client message was quit\n");
                 send(newSocket, "0x09", 4, 0);
                 quit_flag_client = true;
@@ -365,7 +359,7 @@ int upload_file(int socket, char *filename) {
     close(filefd);
     return 0;
 }
-
+/*
 int md5Hash(char *filename){
     unsigned char c[MD5_DIGEST_LENGTH];
     int i;
@@ -389,3 +383,4 @@ int md5Hash(char *filename){
     fclose (inFile);
     return 0;
 }
+ */
