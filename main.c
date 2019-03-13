@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <openssl/md5.h> 
 //#include <sys/sendfile.h>
 //#include <linux/list.h>
 
@@ -39,6 +40,7 @@ const char* directory;
 char directory_list[30][1024]; // max directory list of 20 element strings, with size 1024 ea.
 void close_connection(int socket);
 int list_repository(int socket_id);
+int md5Hash(char *filename);
 
 int upload_file(int socket, char *filename);
 bool quit_flag_client = false;
@@ -239,6 +241,8 @@ void * socketThread(void *arg) {
                         }
                     } while (read_return > 0);
                     close(filefd);
+                    //ALL CAPS THIS IS WHERE THE MD5HASH IS LOOK FOR IT HERE
+                    md5Hash(file_path);
 
                     //function for handling upload and file checking. server response code 0x03
 
@@ -359,5 +363,29 @@ int upload_file(int socket, char *filename) {
         }
     }
     close(filefd);
+    return 0;
+}
+
+int md5Hash(char *filename){
+    unsigned char c[MD5_DIGEST_LENGTH];
+    int i;
+    FILE *inFile = fopen (filename, "rb");
+    MD5_CTX mdContext;
+    int bytes;
+    unsigned char data[1024];
+
+    if (inFile == NULL) 
+	{
+        printf ("%s can't be opened.\n", filename);
+        return 0;
+    }
+
+    MD5_Init (&mdContext);
+    while ((bytes = fread (data, 1, 1024, inFile)) != 0)
+        MD5_Update (&mdContext, data, bytes);
+    MD5_Final (c,&mdContext);
+    for(i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", c[i]);
+    printf("\n");
+    fclose (inFile);
     return 0;
 }
