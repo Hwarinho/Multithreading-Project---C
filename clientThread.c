@@ -22,7 +22,6 @@
 #define MAX_SIZE 4096
 
 char buffer[BUFSIZ];
-char buffer[1024];
 int port;
 const char* address;
 int filefd;
@@ -71,7 +70,7 @@ int main(int argc, char *argv[]) {
         printf("Failed to connect to server\n");
     }
     recv(sock_desc, buffer, 1024, 0);
-    printf("Data received: %s\n", buffer);
+    printf("Data received: %s", buffer);
 
     while (1) {
         bool valid_message = true;
@@ -89,24 +88,15 @@ int main(int argc, char *argv[]) {
             //and remove all but one whitespace characters following hexadecimal
         } else if (strncmp(client_message, "u ", 2) == 0) {
             char string[100] = "";
-
+            char *filename;
 
             strcat(string, "0x02 ");
-            printf("\nUser input: %s", client_message);
-
             //use memmove to remove the first character of a string (for user command and whitespace characters)
             //code for memmove obtained from: https://stackoverflow.com/questions/4295754/how-to-remove-first-character-from-c-string
             memmove(client_message, client_message + 1, strlen(client_message));
             while (strncmp(client_message, " ", 1) == 0) {
                 memmove(client_message, client_message + 1, strlen(client_message));
             }
-            strcat(string, client_message);
-            printf("Stringffs sdfssgsg %s", string);
-            while (strncmp(client_message, "\n", 1) == 0) {
-                memmove(client_message, client_message + 1, strlen(client_message));
-            }
-            strcat(string, client_message);
-            printf("\n--- filename: %s and the strlen %d\n", client_message, (int) strlen(client_message));
             //send edited message
             if (send(sock_desc, string, strlen(string), 0) == -1) {
                 perror("send error");
@@ -114,25 +104,13 @@ int main(int argc, char *argv[]) {
             }
             fflush(stdout);
 
+            filename = strtok(client_message, "\n");
+            filename = strtok(filename, " ");
 
-            //printf("\n%s\n",string);
 
-            //for (int i=0; i < strlen(client_message); i++){
-            //   printf("character: %c\n", client_message[i]);
-
-            //}
-
-            //printf("\n--- filename: %s and the strlen %d\n", client_message, (int) strlen(client_message));
-
-            filefd = open(client_message, O_RDONLY, 0);
-            if (filefd == -1) {
-                perror("open");
-                exit(EXIT_FAILURE);
+            if (upload_file(sock_desc, filename) < 0) {
+                fprintf(stdout, "error in uploading.");
             }
-
-            //if(upload_file(sock_desc, client_message) < 0){
-            //fprintf(stdout, "error in uploading.");
-            //}
             close(filefd);
             close(sock_desc);
             exit(EXIT_SUCCESS);
