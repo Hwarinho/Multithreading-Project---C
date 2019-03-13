@@ -52,17 +52,13 @@ int main(int argc, char *argv[]) {
     int sock_desc;
     struct sockaddr_in serv_addr;
     char client_message[BUFSIZ];
-
     if ((sock_desc = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         printf("Failed creating socket\n");
-
     // Configure settings of the client
     // Address family = Internet
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = inet_addr(address);
     serv_addr.sin_port = htons(9999);
-
-
     //Set IP address to localhost
     serv_addr.sin_addr.s_addr = inet_addr(address);
     //Set port number, using htons function to use proper byte order
@@ -129,7 +125,6 @@ int main(int argc, char *argv[]) {
                 printf("Error in sending stdin\n");
             filename = strtok(client_message, "\n");
             filename = strtok(filename, " ");
-
             if (download_file(sock_desc, filename) < 0) {
                 fprintf(stdout, "error in downloading");
             }
@@ -201,7 +196,7 @@ int upload_file(int socket, char *filename) {
 }
 
 int download_file(int socket, char *filename) {
-    filefd = open("downloaded.txt",
+    filefd = open("downloaded.txt", // - change this
                   O_WRONLY | O_CREAT | O_TRUNC,
                   S_IRUSR | S_IWUSR);
     if (filefd == -1) {

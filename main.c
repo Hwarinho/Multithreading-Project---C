@@ -269,7 +269,10 @@ void * socketThread(void *arg) {
                     memmove(client_message, client_message + 5, strlen(client_message));
                     filename = strtok(client_message, "\n");
                     filename = strtok(filename, " ");
-                    upload_file(newSocket, filename);
+                    if (upload_file(newSocket, filename) < 0) {
+                        perror("upload error");
+                        exit(EXIT_FAILURE);
+                    }
                     close(newSocket);
                     exit(EXIT_SUCCESS);
                     continue;
