@@ -31,6 +31,8 @@ void *connection_handler(void *socket_desc);
 
 int upload_file(int socket, char *filename);
 
+int download_file(int socket, char *filename);
+
 int main(int argc, char *argv[]) {
     //checking if client specified address and port
     if(argc < 2){
@@ -103,20 +105,17 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
             }
             fflush(stdout);
-
             filename = strtok(client_message, "\n");
             filename = strtok(filename, " ");
-
-
             if (upload_file(sock_desc, filename) < 0) {
                 fprintf(stdout, "error in uploading.");
             }
-            close(filefd);
             close(sock_desc);
             exit(EXIT_SUCCESS);
 
         } else if (strncmp(client_message, "d ", 2) == 0) {
             char string[1000] = "";
+            char *filename;
             strcat(string, "0x04 ");
             memmove(client_message, client_message + 1, strlen(client_message));
             while (strncmp(client_message, " ", 1) == 0) {
@@ -126,7 +125,18 @@ int main(int argc, char *argv[]) {
             //send edited message
             if (send(sock_desc, string, strlen(string), 0) == -1)//sending
                 printf("Error in sending stdin\n");
+            filename = strtok(client_message, "\n");
+            filename = strtok(filename, " ");
 
+            if (download_file(sock_desc, filename) < 0) {
+                fprintf(stdout, "error in downloading");
+            }
+            close(sock_desc);
+            exit(EXIT_SUCCESS);
+
+
+
+            /////////////////////////////////
         } else if (strncmp(client_message, "r ", 2) == 0) {
             char string[1000] = "";
             strcat(string, "0x06 ");
@@ -182,6 +192,30 @@ int upload_file(int socket, char *filename) {
             exit(EXIT_FAILURE);
         }
     }
+    close(filefd);
+    return 0;
+}
+
+int download_file(int socket, char *filename) {
+    filefd = open("downloaded.txt",
+                  O_WRONLY | O_CREAT | O_TRUNC,
+                  S_IRUSR | S_IWUSR);
+    if (filefd == -1) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+    do {
+        read_return = read(socket, buffer, BUFSIZ);
+        printf("\n message from client is: %s", buffer);
+        if (read_return == -1) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+        if (write(filefd, buffer, (size_t) read_return) == -1) {
+            perror("write");
+            exit(EXIT_FAILURE);
+        }
+    } while (read_return > 0);
     close(filefd);
     return 0;
 }

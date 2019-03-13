@@ -39,6 +39,8 @@ const char* directory;
 char directory_list[30][1024]; // max directory list of 20 element strings, with size 1024 ea.
 void close_connection(int socket);
 int list_repository(int socket_id);
+
+int upload_file(int socket, char *filename);
 bool quit_flag_client = false;
 bool quit_flag_server = false;
 
@@ -227,7 +229,6 @@ void * socketThread(void *arg) {
                     }
                     do {
                         read_return = read(newSocket, buffer, BUFSIZ);
-                        printf("\n message from client is: %s", buffer);
                         if (read_return == -1) {
                             perror("read");
                             exit(EXIT_FAILURE);
@@ -243,15 +244,30 @@ void * socketThread(void *arg) {
 
                     continue;
                 } else if (strncmp(client_message, "0x04", 4) == 0) {
-                    fprintf(stdout, "Client wants to delete a file\n");
+                    fprintf(stdout, "Client wants to download a file\n");
                     // function to delete file and server response code 0x05
+                    char *filename;
 
+                    memmove(client_message, client_message + 5, strlen(client_message));
+                    filename = strtok(client_message, "\n");
+                    filename = strtok(filename, " ");
+                    //filename = strtok(client_message, "0x04 ");
+                    //filename = strtok(filename, " ");
+
+                    printf("This is the client message --- need filename: %s\n", filename);
+                    upload_file(newSocket, filename);
+
+                    close(newSocket);
+                    exit(EXIT_SUCCESS);
                     continue;
                 } else if (strncmp(client_message, "0x06", 4) == 0) {
-                    fprintf(stdout, "Client wants to download a file\n");
+                    fprintf(stdout, "Client wants to delete a file\n");
+
+
+
+
+
                     continue;
-
-
                     //close(client_sockfd);
                 }
             } else {
@@ -319,4 +335,29 @@ int list_repository(int socket_id) {
         return -1;
     }
     return 1;
+}
+
+int upload_file(int socket, char *filename) {
+
+    filefd = open(filename, O_RDONLY);
+    if (filefd == -1) {
+        perror("open");
+        exit(EXIT_FAILURE);
+    }
+
+    while (1) {
+        read_return = read(filefd, buffer, BUFSIZ);
+        if (read_return == 0)
+            break;
+        if (read_return == -1) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+        if (write(socket, buffer, read_return) == -1) {
+            perror("write");
+            exit(EXIT_FAILURE);
+        }
+    }
+    close(filefd);
+    return 0;
 }
