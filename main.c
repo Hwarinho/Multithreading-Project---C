@@ -188,14 +188,16 @@ void * socketThread(void *arg) {
     fflush(stdin);
 
     while (!quit_flag_client){
+        fprintf(stdout, "Waiting for client input..........\n");
+
         if((read(newSocket, client_message, 20000) != 0)) {
             printf("Client Message: %s\n", client_message);
         }else{
             perror("error in reading client message!");
-            exit(EXIT_FAILURE);
+            //exit(EXIT_FAILURE);
         }
-        fflush(stdout);
-        fflush(stdin);
+        //fflush(stdout);
+        //fflush(stdin);
         // TODO client message preprocessing for instruction list.
         //strcpy(client_message, strtok(client_message, "\n")); //for stripping null term
         // As of Now it can recognize the commands with other text.
@@ -238,8 +240,13 @@ void * socketThread(void *arg) {
                     }
                     do {
                         read_return = read(newSocket, buffer, BUFSIZ);
+                        // To see if the upload is done.
+                        if (strncmp(buffer, "DONE", 4) == 0) {
+                            fprintf(stdout, "Done with the file---\n");
+                            break;
+                        }
                         if (read_return == -1) {
-                            perror("read");
+                            perror("read socket");
                             exit(EXIT_FAILURE);
                         }
                         if (write(filefd, buffer, (size_t) read_return) == -1) {
@@ -248,11 +255,12 @@ void * socketThread(void *arg) {
                         }
                     } while (read_return > 0);
                     close(filefd);
+                    fprintf(stdout, "UPLOAD DONE------\n");
 
                     //ALL CAPS THIS IS WHERE THE MD5HASH IS LOOK FOR IT HERE
                     //md5Hash(file_path);
-
                     //function for handling upload and file checking. server response code 0x03
+
                     continue;
 //----------------------------- Delete --------------------------------------------------//
                 } else if (strncmp(client_message, "0x04", 4) == 0) {
@@ -273,22 +281,20 @@ void * socketThread(void *arg) {
                         perror("upload error");
                         exit(EXIT_FAILURE);
                     }
-                    close(newSocket);
-                    exit(EXIT_SUCCESS);
+                    send(newSocket, "DONE", 4, 0);
                     continue;
                 }
+                fprintf(stdout, "-----------Client has quit\n");
             } else {
 //----------------------------- QUIT --------------------------------------------------//
                 fprintf(stdout, "Client message was quit\n");
                 send(newSocket, "0x09", 4, 0);
                 quit_flag_client = true;
-                continue;
+                break;
             }
         }
+
     }
-
-
-    sleep(2);
     close_connection(newSocket);
     quit_flag_client = false;
     pthread_exit(NULL);
@@ -346,19 +352,17 @@ int list_repository(int socket_id) {
 }
 
 int upload_file(int socket, char *filename) {
-
     filefd = open(filename, O_RDONLY);
     if (filefd == -1) {
         perror("open");
         exit(EXIT_FAILURE);
     }
-
     while (1) {
         read_return = read(filefd, buffer, BUFSIZ);
         if (read_return == 0)
             break;
         if (read_return == -1) {
-            perror("read");
+            perror("read---filefd");
             exit(EXIT_FAILURE);
         }
         if (write(socket, buffer, read_return) == -1) {
@@ -367,7 +371,7 @@ int upload_file(int socket, char *filename) {
         }
     }
     close(filefd);
-    return 0;
+    return 1;
 }
 /*
 int md5Hash(char *filename){
