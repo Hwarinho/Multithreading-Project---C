@@ -11,18 +11,26 @@
 #include <unistd.h> // for close
 #include <stdlib.h>
 #include <ctype.h>
-#include<pthread.h>
+#include <pthread.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <math.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <netdb.h>
+//#include <sys/sendfile.h>
 //#include <linux/list.h>
-
 
 #define ADDRESS "127.0.0.1"
 
+char *file_path = "output.txt";
+int filefd;
+ssize_t read_return;
+
+
 char client_message[2000];
 char server_message[2000];
-char buffer[1024];
+char buffer[BUFSIZ];
 int read_directory(const char* directory);
 void * socketThread(void *arg);
 int port;
@@ -30,7 +38,6 @@ int number_of_files = 0;
 const char* directory;
 char directory_list[30][1024]; // max directory list of 20 element strings, with size 1024 ea.
 void close_connection(int socket);
-
 int list_repository(int socket_id);
 bool quit_flag_client = false;
 bool quit_flag_server = false;
@@ -70,6 +77,7 @@ int main(int argc, char *argv[]) {
     }
 
     //Create the socket.
+
     if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("ERROR opening socket");
         exit(EXIT_FAILURE);
@@ -208,6 +216,29 @@ void * socketThread(void *arg) {
                     continue;
                 } else if (strncmp(client_message, "0x02", 4) == 0) {
                     fprintf(stdout, "Client is uploading file\n");
+
+
+                    filefd = open(file_path,
+                                  O_WRONLY | O_CREAT | O_TRUNC,
+                                  S_IRUSR | S_IWUSR);
+                    if (filefd == -1) {
+                        perror("open");
+                        exit(EXIT_FAILURE);
+                    }
+                    do {
+                        read_return = read(newSocket, buffer, BUFSIZ);
+                        printf("\n message from client is: %s", buffer);
+                        if (read_return == -1) {
+                            perror("read");
+                            exit(EXIT_FAILURE);
+                        }
+                        if (write(filefd, buffer, (size_t) read_return) == -1) {
+                            perror("write");
+                            exit(EXIT_FAILURE);
+                        }
+                    } while (read_return > 0);
+                    close(filefd);
+
                     //function for handling upload and file checking. server response code 0x03
 
                     continue;
@@ -218,8 +249,10 @@ void * socketThread(void *arg) {
                     continue;
                 } else if (strncmp(client_message, "0x06", 4) == 0) {
                     fprintf(stdout, "Client wants to download a file\n");
-                    // function to delete file and server response code 0x07
                     continue;
+
+
+                    //close(client_sockfd);
                 }
             } else {
                 fprintf(stdout, "Client message was quit\n");
