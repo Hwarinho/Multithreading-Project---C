@@ -19,18 +19,18 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-#define MAX_SIZE 4096
 
 char buffer[BUFSIZ];
 int port;
 const char* address;
 int filefd;
 ssize_t read_return;
+char server_message[BUFSIZ];
 
 void *connection_handler(void *socket_desc);
 
+void quit_session(int socket);
 int upload_file(int socket, char *filename);
-
 int download_file(int socket, char *filename);
 
 int main(int argc, char *argv[]) {
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     // from line 17 to 31 we only create sockets to server
     int sock_desc;
     struct sockaddr_in serv_addr;
-    char client_message[MAX_SIZE], rbuff[MAX_SIZE];
+    char client_message[BUFSIZ];
 
     if ((sock_desc = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         printf("Failed creating socket\n");
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
         bool valid_message = true;
 
         //in this loop we first listen to read from stdin and send, then we will get information from server to print
-        if (fgets(client_message, MAX_SIZE, stdin) == NULL) //reading from stdin
+        if (fgets(client_message, BUFSIZ, stdin) == NULL) //reading from stdin
             printf("Error on reading from stdin\n");
 
 
@@ -149,20 +149,24 @@ int main(int argc, char *argv[]) {
                 printf("Error in sending stdin\n");
 //----------------------- QUIT ------------------------------------------------------//
         } else if ((strncmp(client_message, "q", 1) == 0)) {
-            if (send(sock_desc, "0x08", strlen("0x08"), 0) == -1)//sending
+            if (send(sock_desc, "0x08", strlen("0x08"), 0) == -1) {
                 printf("Error in sending stdin\n");
+            }
         //else the program doesn't recognize commands of the user
         }else{
             valid_message = false;
             printf("Invalid command.\n");
         }
-
         if (valid_message == true) {
-            if (recv(sock_desc, rbuff, MAX_SIZE, 0) == 0) {
+            if (recv(sock_desc, server_message, BUFSIZ, 0) == 0) {
                 printf("Error in receiving\n");
             } else {
-                fputs(rbuff, stdout); //print the information
-                fprintf(stdout, "\n");
+                if (strncmp(server_message, "0x09", 4) == 0) {
+                    quit_session(sock_desc);
+                } else {
+                    printf("%s\n", server_message);
+                    free(server_message);
+                }
             }
         }
     }
@@ -218,4 +222,9 @@ int download_file(int socket, char *filename) {
     } while (read_return > 0);
     close(filefd);
     return 0;
+}
+
+void quit_session(int socket) {
+    close(socket);
+    exit(EXIT_SUCCESS);
 }
