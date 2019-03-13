@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
                 memmove(client_message, client_message + 1, strlen(client_message));
             }
             //send edited message
-            if (send(sock_desc, string, strlen(string), 0) == -1) {
+            if (send(sock_desc, strcat(string, client_message), BUFSIZ, 0) == -1) {
                 perror("send error");
                 exit(EXIT_FAILURE);
             }

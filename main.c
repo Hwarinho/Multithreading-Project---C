@@ -23,8 +23,6 @@
 //#include <linux/list.h>
 
 #define ADDRESS "127.0.0.1"
-
-char *file_path = "output.txt";
 int filefd;
 ssize_t read_return;
 
@@ -191,7 +189,7 @@ void * socketThread(void *arg) {
 
     while (!quit_flag_client){
         if((read(newSocket, client_message, 20000) != 0)) {
-            printf("Client Message:-%s-\n", client_message);
+            printf("Client Message: %s\n", client_message);
         }else{
             perror("error in reading client message!");
             exit(EXIT_FAILURE);
@@ -222,7 +220,16 @@ void * socketThread(void *arg) {
 //----------------------------- UPLOAD --------------------------------------------------//
                 } else if (strncmp(client_message, "0x02", 4) == 0) {
                     fprintf(stdout, "Client is uploading file\n");
-                    filefd = open(file_path,
+
+                    char *filename;
+
+                    memmove(client_message, client_message + 5, strlen(client_message));
+                    filename = strtok(client_message, "\n");
+                    filename = strtok(filename, " ");
+                    //strcat(filename,"2"); --- test for difference.
+                    printf("The file name being open is: %s\n", filename);
+
+                    filefd = open(filename,
                                   O_WRONLY | O_CREAT | O_TRUNC,
                                   S_IRUSR | S_IWUSR);
                     if (filefd == -1) {
