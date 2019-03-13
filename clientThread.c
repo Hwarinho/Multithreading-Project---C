@@ -83,11 +83,13 @@ int main(int argc, char *argv[]) {
 
 
         //Send message based on what the user has specified (l,u,d,r,q)
+//----------------------- LIST ------------------------------------------------------//
         if (strncmp(client_message, "l", 1) == 0) {
             if (send(sock_desc, "0x00", strlen("0x00"), 0) == -1)//sending
                 printf("Error in sending stdin\n");
             //for commands u, d, r, we need to remove user command letter, add the hexadecimal command to the string
             //and remove all but one whitespace characters following hexadecimal
+//------------------------- UPLOAD ----------------------------------------------------------//
         } else if (strncmp(client_message, "u ", 2) == 0) {
             char string[100] = "";
             char *filename;
@@ -112,7 +114,7 @@ int main(int argc, char *argv[]) {
             }
             close(sock_desc);
             exit(EXIT_SUCCESS);
-
+//----------------------- DOWNLOAD ------------------------------------------------------//
         } else if (strncmp(client_message, "d ", 2) == 0) {
             char string[1000] = "";
             char *filename;
@@ -133,10 +135,7 @@ int main(int argc, char *argv[]) {
             }
             close(sock_desc);
             exit(EXIT_SUCCESS);
-
-
-
-            /////////////////////////////////
+//----------------------- REMOVE ------------------------------------------------------//
         } else if (strncmp(client_message, "r ", 2) == 0) {
             char string[1000] = "";
             strcat(string, "0x04 ");
@@ -148,6 +147,7 @@ int main(int argc, char *argv[]) {
             //send edited message
             if (send(sock_desc, string, strlen(string), 0) == -1)//sending
                 printf("Error in sending stdin\n");
+//----------------------- QUIT ------------------------------------------------------//
         } else if ((strncmp(client_message, "q", 1) == 0)) {
             if (send(sock_desc, "0x08", strlen("0x08"), 0) == -1)//sending
                 printf("Error in sending stdin\n");
