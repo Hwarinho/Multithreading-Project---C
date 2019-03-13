@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<note>
+    <file>
+        <hashname>3835946ed266331545915e22e13d5120</hashname>
+        <knownas>foo.txt</knownas>
+        <knownas>bar.txt</knownas>
+    </file>
+    <file>
+        <hashname>b5884b223b0170166e05038919289334</hashname>
+        <knownas>a.txt</knownas>
+        <knownas>b.txt</knownas>
+    </file>
+</note>

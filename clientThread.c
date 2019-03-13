@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
 
         //Send message based on what the user has specified (l,u,d,r,q)
 //----------------------- LIST ------------------------------------------------------//
-        if (strncmp(client_message, "l", 1) == 0) {
+        if (strncmp(client_message, "l\n", 2) == 0) {
             if (send(sock_desc, "0x00", strlen("0x00"), 0) == -1)//sending
                 printf("Error in sending stdin\n");
             //for commands u, d, r, we need to remove user command letter, add the hexadecimal command to the string
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
             if (send(sock_desc, string, strlen(string), 0) == -1)//sending
                 printf("Error in sending stdin\n");
 //----------------------- QUIT ------------------------------------------------------//
-        } else if ((strncmp(client_message, "q", 1) == 0)) {
+        } else if ((strncmp(client_message, "q\n", 2) == 0)) {
             if (send(sock_desc, "0x08", strlen("0x08"), 0) == -1) {
                 printf("Error in sending stdin\n");
             }

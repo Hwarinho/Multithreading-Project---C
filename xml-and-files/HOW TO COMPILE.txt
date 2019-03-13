@@ -1,0 +1,14 @@
+For compiling xml files you have to run this command:
+gcc -o NameOfTheOutput -std=c99 `xml2-config --cflags` NameOfTheFile.c `xml2-config --libs`
+
+Then you have to give the XML file as the arg: (our example for XML file is note.xml)
+./NameOfTheOutput NameOfTheXMLFile.xml --> ./NameOfTheOutput note.xml
+
+For more examples check:
+http://www.xmlsoft.org/examples/
+******************************************************************************************
+
+For compiling the md5 hash class:
+gcc -std=c99 NameOfTheFile.c -lssl -lcrypto --> gcc -std=c99 md5Hash.c -lssl -lcrypto
+
+The code is running md5 checksum on 1.txt's contents.
