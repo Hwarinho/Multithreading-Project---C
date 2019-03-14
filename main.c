@@ -189,12 +189,13 @@ void * socketThread(void *arg) {
 
     while (!quit_flag_client){
         fprintf(stdout, "Waiting for client input..........\n");
-
+        strcpy(client_message, "");
         if((read(newSocket, client_message, 20000) != 0)) {
             printf("Client Message: %s\n", client_message);
         }else{
             perror("error in reading client message!");
-            //exit(EXIT_FAILURE);
+            close(newSocket);
+            break;
         }
         //fflush(stdout);
         //fflush(stdin);
@@ -228,9 +229,15 @@ void * socketThread(void *arg) {
                     memmove(client_message, client_message + 5, strlen(client_message));
                     filename = strtok(client_message, "\n");
                     filename = strtok(filename, " ");
-                    //strcat(filename,"2"); --- test for difference.
                     printf("The file name being open is: %s\n", filename);
 
+                    for (int i = 0; i < 30; i++) {
+                        if (strcmp(filename, directory_list[i]) == 0) {
+                            printf("Found file already in repo... %s--%s\n", filename, directory_list[i]);
+                            break;
+                        }
+                    }
+                    fprintf(stdout, "Opening the filename.\n");
                     filefd = open(filename,
                                   O_WRONLY | O_CREAT | O_TRUNC,
                                   S_IRUSR | S_IWUSR);
@@ -238,11 +245,22 @@ void * socketThread(void *arg) {
                         perror("open");
                         exit(EXIT_FAILURE);
                     }
+                    fprintf(stdout, "Entering writing loop\n");
                     do {
-                        read_return = read(newSocket, buffer, BUFSIZ);
+                        if (recv(newSocket, client_message, 4, 0) == -1) {
+                            perror("receive");
+                            break;
+                        } else {
+                            if (strncmp(client_message, "DONE", 4) == 0) {
+                                fprintf(stdout, "WE HAVE TERMINATOION SDADAD\n");
+                                break;
+                            }
+                        }
+                        read_return = read(newSocket, buffer, 100);
+                        printf("This hs the Read Reaturn %zd\n", read_return);
                         // To see if the upload is done.
                         if (strncmp(buffer, "DONE", 4) == 0) {
-                            fprintf(stdout, "Done with the file---\n");
+                            fprintf(stdout, "We hit terminator");
                             break;
                         }
                         if (read_return == -1) {
@@ -253,15 +271,24 @@ void * socketThread(void *arg) {
                             perror("write");
                             exit(EXIT_FAILURE);
                         }
+                        strcpy(buffer, "");
+                        sleep(1);
+                        memset(buffer, 0, 0);
                     } while (read_return > 0);
+                    fprintf(stdout, "Done the writing, close fine NOW!\n");
                     close(filefd);
                     fprintf(stdout, "UPLOAD DONE------\n");
+                    printf("This is the buffer--sdgdsgs----%s\n", buffer);
+                    if (send(newSocket, "0x03", 4, 0) == -1) {
+                        perror("send");
+                        continue;
+                    }
 
                     //ALL CAPS THIS IS WHERE THE MD5HASH IS LOOK FOR IT HERE
                     //md5Hash(file_path);
                     //function for handling upload and file checking. server response code 0x03
-
                     continue;
+
 //----------------------------- Delete --------------------------------------------------//
                 } else if (strncmp(client_message, "0x04", 4) == 0) {
                     fprintf(stdout, "Client wants to delete a file\n");
@@ -325,7 +352,7 @@ int list_repository(int socket_id) {
     int length = snprintf(NULL, 0, "%d", number_of_files);
     char *str = malloc((size_t) sizeof((length + 1)));
     snprintf(str, length + 1, "%d", number_of_files);
-    fprintf(stdout, "%d--number of files\n", number_of_files);
+    //fprintf(stdout, "%d--number of files\n", number_of_files);
     char string[1000] = "";
     strcat(string, "0x01 ");
     strcat(string, str);
@@ -334,7 +361,7 @@ int list_repository(int socket_id) {
     char *buffer2 = NULL;
     for (int i = 0; i < number_of_files; i++) {
         if (strncmp(directory_list[i], "0", 1) != 0) {
-            printf("%s\n", directory_list[i]);
+            //printf("%s\n", directory_list[i]);
             buffer2 = malloc(sizeof(buffer2) + sizeof(directory_list[i]) + 1);
             strcpy(buffer2, directory_list[i]);
             strcat(buffer2, " ");

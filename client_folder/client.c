@@ -25,7 +25,7 @@ int port;
 const char* address;
 int filefd;
 ssize_t read_return;
-char server_message[BUFSIZ];
+char server_message[4096];
 
 void *connection_handler(void *socket_desc);
 
@@ -77,8 +77,11 @@ int main(int argc, char *argv[]) {
         if (fgets(client_message, BUFSIZ, stdin) == NULL) {
             printf("Error on reading from stdin\n");
         }
-        printf("Command is: ---%s", client_message);
         //Send message based on what the user has specified (l,u,d,r,q)
+        strcpy(server_message, "");
+        printf("THIS SI THE SERVER MESSAGE AT BEGIN.....%s\n", server_message);
+        memset(server_message, 0, 0);
+        printf("THIS SI THE SERVER MESSAGE AT BEGINA AFTER MEME....%s\n", server_message);
 //----------------------- LIST ------------------------------------------------------//
         if (strncmp(client_message, "l\n", 2) == 0) {
             if (send(sock_desc, "0x00", strlen("0x00"), 0) == -1) {
@@ -92,6 +95,7 @@ int main(int argc, char *argv[]) {
                 // makes sure the server message is not empty, sometimes happens.
                 if (strncmp(server_message, "0x", 2) == 0) {
                     printf("%s\n", server_message);
+                    strcpy(server_message, "");
                     break;
                 }
             }
@@ -101,6 +105,11 @@ int main(int argc, char *argv[]) {
         } else if (strncmp(client_message, "u ", 2) == 0) {
             char string[100] = "";
             char *filename;
+            // Handle if command doesn't have secondary requirements.
+            if (strncmp(client_message, "u  ", 3) == 0) {
+                fprintf(stdout, "Need filename.\n");
+                continue;
+            }
 
             strcat(string, "0x02 ");
             //use memmove to remove the first character of a string (for user command and whitespace characters)
@@ -119,9 +128,37 @@ int main(int argc, char *argv[]) {
             if (upload_file(sock_desc, filename) < 0) {
                 fprintf(stdout, "error in uploading.");
             }
+            fprintf(stdout, "FINSIISFAFALSFK ASFALF\n");
+
+            char term[] = "DONE";
+            if (send(sock_desc, term, 4, 0) == -1) {
+                perror("send");
+                return -1;
+            }
+            fprintf(stdout, "SENDING THER TERMINATOR\n");
+            // clear server_message.
+            strcpy(server_message, "");
+            while (1) {
+                if (recv(sock_desc, server_message, 4, 0) == -1) {
+                    perror("upload error, server");
+                    continue;
+                } else {
+                    if (strncmp(server_message, "0x03", 4) == 0) {
+                        // server success upload.
+                        printf("%s\n", server_message);
+                        break;
+                    }
+                }
+            }
             continue;
 //----------------------- DOWNLOAD ------------------------------------------------------//
         } else if (strncmp(client_message, "d ", 2) == 0) {
+            // Handle if command doesn't have secondary requirements.
+            if (strncmp(client_message, "d  ", 3) == 0) {
+                fprintf(stdout, "Need filename.\n");
+                continue;
+            }
+
             char string[100] = "";
             char *filename;
             strcat(string, "0x06 ");
@@ -179,28 +216,33 @@ int main(int argc, char *argv[]) {
 
 
 int upload_file(int socket, char *filename) {
+    struct stat buf;
+    stat(filename, &buf);
+    off_t size = buf.st_size;
+
+    printf("The file size: %lli\n", size);
 
     filefd = open(filename, O_RDONLY);
     if (filefd == -1) {
         perror("open");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     while (1) {
-        read_return = read(filefd, buffer, BUFSIZ);
+        read_return = read(filefd, buffer, size);
         if (read_return == 0)
             break;
         if (read_return == -1) {
             perror("read");
-            exit(EXIT_FAILURE);
+            return -1;
         }
-        if (write(socket, buffer, read_return) == -1) {
+        if (write(socket, buffer, (size_t) size) == -1) {
             perror("write");
-            exit(EXIT_FAILURE);
+            return -1;
         }
     }
     close(filefd);
-    send(socket, "DONE", 4, 0);
+    fprintf(stdout, "Need to terminate now!\n");
     return 1;
 }
 
