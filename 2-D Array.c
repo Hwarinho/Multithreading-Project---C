@@ -1,3 +1,6 @@
+//BASIC CODE FROM 2d array obtained from: https://beginnersbook.com/2014/01/2d-arrays-in-c-example/
+
+
 #include<stdio.h>
 int main(){
    /* 2D array declaration*/
