@@ -1,5 +1,7 @@
 //Code for linked list obtained from: https://www.linuxjournal.com/content/hash-tables%E2%80%94theory-and-practice
 //THE MORE USEFUL HASHTABLE: https://medium.com/@bartobri/hash-crash-the-basics-of-hash-tables-bef82a8ea550
+//XML TUTORIAL: http://xmlsoft.org/tutorial/apc.html
+//more XML STUFF: https://www.linuxquestions.org/questions/programming-9/creating-an-xml-file-using-libxml-745532/
 
 #include 
 #include 
