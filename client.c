@@ -78,8 +78,8 @@ int main(int argc, char *argv[]) {
     if (connect(sock_desc, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
         printf("Failed to connect to server\n");
     }
-    recv(sock_desc, buffer, 1024, 0);
-    printf("Data received: %s", buffer);
+    //recv(sock_desc, buffer, 1024, 0);
+    //printf("Data received: %s", buffer);
     while (1) {
         bool valid_message = true;
         //in this loop we first listen to read from stdin and send, then we will get information from server to print
@@ -135,7 +135,8 @@ int main(int argc, char *argv[]) {
             filename = strtok(client_message, "\n");
             filename = strtok(filename, " ");
             if (upload_file(sock_desc, filename) < 0) {
-                fprintf(stdout, "error in uploading.");
+                // if there was an error in uploading it gives the error and quits client for sanity, i couldn't find a way to make it smoother.
+                fprintf(stdout, "-\n");
                 break;
             }
             // needed for timing of socket messages.
@@ -183,7 +184,7 @@ int main(int argc, char *argv[]) {
                 memmove(client_message, client_message + 1, strlen(client_message));
             }
             strcat(string, client_message);
-            //send edited message
+            //send edited message, Since not implemented fully, doesn't do anything.
             if (send(sock_desc, string, strlen(string), 0) == -1)
                 printf("Error in sending stdin\n");
 //----------------------- QUIT ------------------------------------------------------//
@@ -215,6 +216,10 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+/**
+ * This is to upload a file to the server, it is supposed to also handle if file is not in clients directory.
+ * It sends the file via chuncks of 8192 until all of the file size is uploaded.
+ **/
 int upload_file(int socket, char *filename) {
     // Used help with how to set up the while loop and buffer to send the file contents to socket.
     // https://www.youtube.com/watch?reload=9&v=12F3GBw28Lg.
@@ -227,8 +232,6 @@ int upload_file(int socket, char *filename) {
         struct stat buf;
         stat(filename, &buf);
         off_t size = buf.st_size;
-        printf("THE FILE SIZE IS: %zd\n",size);
-        printf("THIS IS THE BUFFER BEFORE:--%s",buffer);
         memset(buffer,0,BUFSIZ);
         while(1)
         {
@@ -238,7 +241,6 @@ int upload_file(int socket, char *filename) {
             if(nread > 0)
             {
                 size -= nread;
-                printf("THE NEW SIZE IS BLAH: %zd\n",size);
                 write(socket, buff, nread);
             }
             if (size <= 0){
@@ -248,7 +250,7 @@ int upload_file(int socket, char *filename) {
                         perror("send");
                         return -1;
                     }
-		            printf("File transfer completed for id: %d\n",socket);
+		            //printf("File transfer completed for id: %d\n",socket);
 		            }
                 if (ferror(fp))
                     printf("Error reading\n");
@@ -257,9 +259,10 @@ int upload_file(int socket, char *filename) {
         }
     return 1;
 }
-
-
-
+/**
+ * This is to download a file from the server, it is supposed to also handle if file is not in server's directory.
+ * It sends the file via chuncks of 8192 until all of the file size is downloaded.
+ **/
 
 int download_file(int socket, char *filename) {
     memset(buffer,0,BUFSIZ);
@@ -272,7 +275,6 @@ int download_file(int socket, char *filename) {
     }
     do {
         read_return = read(socket, buffer, BUFSIZ);
-        printf("BYTES RECIVED: %d and string--%s\n", (int) read_return, buffer);
         if((read_return == 4) && (strncmp(buffer,"0xFF",4)==0)){
             printf("%s Server couldn't find file\n",buffer);
             close(filefd);
@@ -292,7 +294,6 @@ int download_file(int socket, char *filename) {
             return -1;
         }
         if (read_return == 0){
-            fprintf(stdout, "READ RETURN IS NOW ZERO< STOP WRITING.");
             continue;
         }
         // reset buffer for fresh read.

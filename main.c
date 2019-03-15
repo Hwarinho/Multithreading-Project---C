@@ -213,7 +213,7 @@ void * socketThread(void *arg) {
             perror("error in reading client message!");
             close(newSocket);
             quit_flag_client = TRUE;
-            break;
+            continue;
         }
         // As of Now it can recognize the commands with other text.
         if (strncmp(client_message, "0x", 2) != 0) {
@@ -255,7 +255,7 @@ void * socketThread(void *arg) {
                     for (int i = 0; i < 30; i++) {
                         if (strcmp(filename, directory_list[i]) == 0) {
                             printf("Found file already in repo... %s--%s\n", filename, directory_list[i]);
-                            break;
+                            continue;
                         }
                     }
                     // downloads the clients file. The mutex lock goes here.
@@ -320,7 +320,8 @@ void * socketThread(void *arg) {
 void close_connection(int socket){
     // Do shutdown of server socket, this is where it should also do save the XML but never implememnted.
     printf("Closing socket, and exiting Thread \n");
-    shutdown(socket,2);
+    close(socket);
+    
 }
 
 /**
