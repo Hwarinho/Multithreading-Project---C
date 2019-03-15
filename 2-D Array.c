@@ -1,5 +1,7 @@
 //BASIC CODE FROM 2d array obtained from: https://beginnersbook.com/2014/01/2d-arrays-in-c-example/
 
+//https://math.stackexchange.com/questions/597927/how-do-i-find-the-jordan-normal-form-of-a-matrix-with-complex-eigenvalues
+
 
 #include<stdio.h>
 int main(){
