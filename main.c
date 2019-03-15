@@ -1,3 +1,7 @@
+/* Created MARCH 2 2019, by NIKITA YEVTUKH 
+* CS379 ASSIGNMENT 2. Run by ./main [directory] [port number].
+* More information can be found in README.
+*/
 #define _XOPEN_SOURCE 700
 
 #include <stdio.h>
@@ -18,40 +22,51 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <signal.h>
+#include <sys/syscall.h>
 //#include <openssl/md5.h>
-//#include <sys/sendfile.h>
-//#include <linux/list.h>
+#include <sys/sendfile.h>
+#include <curses.h>
 
 #define ADDRESS "127.0.0.1"
+
+// Defining globals and functions.
 int filefd;
 ssize_t read_return;
-
-
 char client_message[2000];
 char server_message[2000];
 char buffer[BUFSIZ];
 int read_directory(const char* directory);
 void * socketThread(void *arg);
 int port;
+int serverSocket;
 int number_of_files = 0;
 const char* directory;
 char directory_list[30][1024]; // max directory list of 20 element strings, with size 1024 ea.
 void close_connection(int socket);
 int list_repository(int socket_id);
 int md5Hash(char *filename);
-
+int download_file(int socket, char *filename);
 int upload_file(int socket, char *filename);
+void SigHandler(int signo);
 bool quit_flag_client = false;
 bool quit_flag_server = false;
+volatile sig_atomic_t done = 0; //atomic read and writes.
 
 
-
+/** This is the main function that takes in directory and port number as arguments.
+ * It starts by checking arguments for errors. Then proceeds to start a SIGTERM handler.
+ * It then populates a global list to store file names that are in the directory requested.
+ * Lastly it sets up a TCP socket connection that holds 40 sockets and 60 threads, each new connection
+ * gets a socket and thread were the client commands are run. upon termination this should be closeing the 
+ * threads to avoid zombie threads. (My attempt at that).
+ **/
 int main(int argc, char *argv[]) {
     // error checking for arguments for running server.
     int i = 0;
     if(argc < 2)
     {
-        printf("Directory name missing!\n");
+        perror("Directory name missing!\n");
         exit(EXIT_FAILURE);
     }else if(argc < 3)
     {
@@ -61,9 +76,19 @@ int main(int argc, char *argv[]) {
         printf("Port entered is not a number.\n");
         exit(EXIT_FAILURE);
     }
+    // setting up the signal handler for sigterm & sigint. Modified from assignemnt 1.
+    static struct sigaction sa;
+    sa.sa_handler = SigHandler;
+	sigemptyset(&sa.sa_mask);
+    sa.sa_flags =0;
+	sa.sa_flags = SA_RESTART;
+    
+    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    // set up socket stuff based on user arguments.
     port = atoi(argv[2]);
     directory = argv[1];
-    int serverSocket, newSocket;
+    int newSocket;
     struct sockaddr_in serverAddr;
     struct sockaddr_storage serverStorage;
     socklen_t addr_size;
@@ -72,14 +97,12 @@ int main(int argc, char *argv[]) {
     for (i=0; i < (sizeof( directory_list ) / sizeof( directory_list[0])); i++){
         strcpy(directory_list[i],"0");
     }
-    printf("Port #: %d\n", port);
-
     if ((read_directory(directory)) < 0) {
-        printf("We got a directory error read");
+        perror("read directory");
+        exit(EXIT_FAILURE);
     }
 
     //Create the socket.
-
     if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("ERROR opening socket");
         exit(EXIT_FAILURE);
@@ -106,7 +129,6 @@ int main(int argc, char *argv[]) {
     } else{
         printf("Listening\n");
     }
-
     pthread_t tid[60]; // the thread ID array.
     i = 0;
     while(!quit_flag_server)
@@ -117,13 +139,10 @@ int main(int argc, char *argv[]) {
 
         strcpy(buffer,"Hello World\n");
         send(newSocket,buffer,13,0);
-
         //for each client request creates a thread and assign the client request to it to process
         //so the main thread can entertain next request
         if( newSocket >= 0)
         {
-            printf("user number %d \n", i);
-            printf("Client is connected via socket: %d, starting new thread\n", newSocket);
             fflush(stdout);
             // as soon as client sends a message a new thread is made to deal with the request and the server goes back into sleep mode.
             if( pthread_create(&tid[i], NULL, socketThread, &newSocket) != 0 )
@@ -143,10 +162,7 @@ int main(int argc, char *argv[]) {
             i = 0;
         }
     }
-
-    // TODO kill threads and join, then grab and save state of XML for file struct. Then quit.
     return 0;
-
 }
 
 /**
@@ -158,7 +174,6 @@ int main(int argc, char *argv[]) {
 int read_directory(const char* directory){
     DIR *d;
     struct dirent *dir;
-    //char cwd[256]; // + getcwd for the full directory name
     d = opendir(directory);
     if (d) {
         int i =0;
@@ -180,29 +195,27 @@ int read_directory(const char* directory){
     return 0;
 }
 
-
+/** This function is gonna handle each individual thread logic. So each command a client issues on its thread will be processed here.
+ * This function also takes care if a client quits and thus closes its socket and exits the thread.
+ * The main commands for clients are Upload, Delete, List, Download and Quit.
+ **/
 void * socketThread(void *arg) {
     int newSocket = *((int *)arg);
     // Send message to the client socket
-    fflush(stdout);
-    fflush(stdin);
-
     while (!quit_flag_client){
-        fprintf(stdout, "Waiting for client input..........\n");
-        strcpy(client_message, "");
-        if((read(newSocket, client_message, 20000) != 0)) {
+        // Waiting for client input, reset to fresh buffers
+        memset(buffer,0,BUFSIZ);
+        memset(client_message, 0, 2000);
+        if((read(newSocket, client_message, BUFSIZ) != 0)) {
             printf("Client Message: %s\n", client_message);
         }else{
+            // in case of "bad"/glitchy clients, don't deal with them and close the socket and thread await new connection.
             perror("error in reading client message!");
             close(newSocket);
+            quit_flag_client = TRUE;
             break;
         }
-        //fflush(stdout);
-        //fflush(stdin);
-        // TODO client message preprocessing for instruction list.
-        //strcpy(client_message, strtok(client_message, "\n")); //for stripping null term
         // As of Now it can recognize the commands with other text.
-
         if (strncmp(client_message, "0x", 2) != 0) {
             if ((send(newSocket, "0xFF Invalid Command\n", 22, 0)) == -1) {
                 fprintf(stdout, "error in sending");
@@ -211,135 +224,103 @@ void * socketThread(void *arg) {
             if (strncmp(client_message, "0x08", 4) != 0) {
 //----------------------------- LIST --------------------------------------------------//
                 if (strncmp(client_message, "0x00", 4) == 0) {
-                    fprintf(stdout, "--printing directory---\n");
                     // function to print out directory, server response code 0x01
-                    if ((list_repository(newSocket)) > 0) {  // directory_list is a global list.
-                        fprintf(stdout, "No Error");
-                    } else {
-                        // server response for 0xFF and error in sending repo list.
-                        fprintf(stdout, "was a error");
+                    
+                    if ((read_directory(directory)) < 0) {
+                        perror("read directory");
+                        if(send(newSocket,"0xFF",4,0) == -1){
+                            perror("send");
+                            continue;
+                        }
                     }
+                    // to get an up-to-date list.
+                    if ((list_repository(newSocket)) < 0) { 
+                        // server response for 0xFF and error in sending repo list.
+                        char *error = "error in sending list.\n";
+                        if(send(newSocket,error,strlen(error),0)){
+                            perror("send");
+                            continue;
+                        }
+                    }         
                     continue;
 //----------------------------- UPLOAD --------------------------------------------------//
+                // Add timeout of 15 seconds here. If time expires sends client and 0xFF and awaits new command.
                 } else if (strncmp(client_message, "0x02", 4) == 0) {
-                    fprintf(stdout, "Client is uploading file\n");
-
                     char *filename;
-
+                    // Grabs the file name from incoming message.
                     memmove(client_message, client_message + 5, strlen(client_message));
                     filename = strtok(client_message, "\n");
                     filename = strtok(filename, " ");
-                    printf("The file name being open is: %s\n", filename);
-
+                    // checks if the filename is already in the repo.
                     for (int i = 0; i < 30; i++) {
                         if (strcmp(filename, directory_list[i]) == 0) {
                             printf("Found file already in repo... %s--%s\n", filename, directory_list[i]);
                             break;
                         }
                     }
-                    fprintf(stdout, "Opening the filename.\n");
-                    filefd = open(filename,
-                                  O_WRONLY | O_CREAT | O_TRUNC,
-                                  S_IRUSR | S_IWUSR);
-                    if (filefd == -1) {
-                        perror("open");
-                        exit(EXIT_FAILURE);
-                    }
-                    fprintf(stdout, "Entering writing loop\n");
-                    do {
-                        if (recv(newSocket, client_message, 4, 0) == -1) {
-                            perror("receive");
-                            break;
-                        } else {
-                            if (strncmp(client_message, "DONE", 4) == 0) {
-                                fprintf(stdout, "WE HAVE TERMINATOION SDADAD\n");
-                                break;
-                            }
-                        }
-                        read_return = read(newSocket, buffer, 100);
-                        printf("This hs the Read Reaturn %zd\n", read_return);
-                        // To see if the upload is done.
-                        if (strncmp(buffer, "DONE", 4) == 0) {
-                            fprintf(stdout, "We hit terminator");
-                            break;
-                        }
-                        if (read_return == -1) {
-                            perror("read socket");
-                            exit(EXIT_FAILURE);
-                        }
-                        if (write(filefd, buffer, (size_t) read_return) == -1) {
-                            perror("write");
-                            exit(EXIT_FAILURE);
-                        }
-                        strcpy(buffer, "");
-                        sleep(1);
-                        memset(buffer, 0, 0);
-                    } while (read_return > 0);
-                    fprintf(stdout, "Done the writing, close fine NOW!\n");
-                    close(filefd);
-                    fprintf(stdout, "UPLOAD DONE------\n");
-                    printf("This is the buffer--sdgdsgs----%s\n", buffer);
-                    if (send(newSocket, "0x03", 4, 0) == -1) {
-                        perror("send");
+                    // downloads the clients file. The mutex lock goes here.
+                    if ((download_file(newSocket, filename)) < 0) {
+                        perror("0xFF download");
                         continue;
                     }
-
-                    //ALL CAPS THIS IS WHERE THE MD5HASH IS LOOK FOR IT HERE
+                    // exit lock here.
                     //md5Hash(file_path);
-                    //function for handling upload and file checking. server response code 0x03
                     continue;
 
 //----------------------------- Delete --------------------------------------------------//
                 } else if (strncmp(client_message, "0x04", 4) == 0) {
-                    fprintf(stdout, "Client wants to delete a file\n");
+                // Add timeout of 15 seconds here. If time expires sends client and 0xFF and awaits new command.
+                    // Lock goes here for the deletion process. This is a pretty trivial task just ran out of time cuz of soloing the project.
                     // function to delete file and server response code 0x05
                     continue;
 //----------------------------- DOWNLOAD --------------------------------------------------//
                 } else if (strncmp(client_message, "0x06", 4) == 0) {
-                    fprintf(stdout, "Client wants to download a file\n");
-                    // -- Lock might go here.----
-                    // need to send it as: 0x07 | size | contents|
+                // Add timeout of 15 seconds here. If time expires sends client and 0xFF and awaits new command.
                     char *filename;
-
                     memmove(client_message, client_message + 5, strlen(client_message));
                     filename = strtok(client_message, "\n");
                     filename = strtok(filename, " ");
+                    // Lock would go here for all threads.
                     if (upload_file(newSocket, filename) < 0) {
                         perror("upload error");
-                        exit(EXIT_FAILURE);
+                        sleep(1);
+                        if (send(newSocket,"0xFF",4,0) == -1){
+                            perror("send");
+                            continue;
+                        }
+                        continue;
                     }
-                    send(newSocket, "DONE", 4, 0);
+                    // need the sleep for timeing issue of terminating the stream of data to client. I know it's not effiecent.
+                    sleep(1);
+                    if (send(newSocket,"0x07", 4, 0) ==-1){
+                        perror("send");
+                        continue;
+                    }
+                    // exit lock.
                     continue;
                 }
-                fprintf(stdout, "-----------Client has quit\n");
             } else {
 //----------------------------- QUIT --------------------------------------------------//
-                fprintf(stdout, "Client message was quit\n");
                 send(newSocket, "0x09", 4, 0);
                 quit_flag_client = true;
                 break;
             }
         }
-
     }
+    // close connection and thread and await new connection.
     close_connection(newSocket);
     quit_flag_client = false;
     pthread_exit(NULL);
-
 }
 
 /**
- * Safe Close given socket.
+ * Safe Close given socket and exit the thread.
  * @param socket
  */
 void close_connection(int socket){
-    // Close the socket with a message to client and return to main thread handler to close and rejoin the thread.
+    // Do shutdown of server socket, this is where it should also do save the XML but never implememnted.
     printf("Closing socket, and exiting Thread \n");
-    char * Closing = "Terminating session.\n";
-    if(send(socket, Closing, strlen(Closing), 0) == -1){
-        printf("Error: %s\n", strerror(errno));
-    }
-    close(socket);
+    shutdown(socket,2);
 }
 
 /**
@@ -369,38 +350,124 @@ int list_repository(int socket_id) {
         }
     }
     free(buffer2);
-    printf("String so far: %s\n", string);
+    //printf("String so far: %s\n", string);
     strcpy(server_message, string);
     if ((send(socket_id, server_message, 2000, 0)) == -1) {
         //error in sending.
         return -1;
     }
+    // clear server message
+    strcpy(server_message,"");
     return 1;
 }
 
+/** This handles the download from server to client, this gets the file size and uses it to write to socket in 8192 size chunks until all
+ *  the size is done then sends the termination signal to client(the ok message).
+ **/
 int upload_file(int socket, char *filename) {
-    filefd = open(filename, O_RDONLY);
+    // Used help with how to set up the while loop and buffer to send the file contents to socket.
+    // https://www.youtube.com/watch?reload=9&v=12F3GBw28Lg.
+    FILE *fp = fopen(filename,"rb");
+        if(fp==NULL){
+            perror("open");
+            return -1;   
+        }   
+        /* Read data from file and send it */
+        struct stat buf;
+        stat(filename, &buf);
+        off_t size = buf.st_size;
+        //printf("THE FILE SIZE IS: %zd\n",size);
+        while(1)
+        {
+            unsigned char buff[BUFSIZ];
+            int nread = fread(buff,1,BUFSIZ,fp);
+            /* If read was success, send data. */
+            if(nread > 0)
+            {
+                size -= nread;
+                printf("THE NEW SIZE IS BLAH: %zd\n",size);
+                write(socket, buff, nread);
+            }
+            if (size <= 0){
+                if (feof(fp)){
+                    printf("End of file\n");
+                    if(send(socket,"",0,0)== -1){
+                        perror("send");
+                        return -1;
+                    }
+		            }
+                if (ferror(fp))
+                    printf("Error reading\n");
+                break;
+            }
+        }
+    return 1;
+}
+/** This handles the upload from client to server, this gets the file size and uses it to write to socket in 8192 size chunks until all
+ *  the size is done then sends the termination signal to client(the ok message). Sorry if it is a bit confusing with the names, made sense
+ * in my head at the time.
+ **/
+int download_file(int socket, char *filename) {
+    memset(buffer,0,BUFSIZ);
+    filefd = open(filename,
+                  O_WRONLY | O_CREAT | O_TRUNC,
+                  S_IRUSR | S_IWUSR);
     if (filefd == -1) {
         perror("open");
-        exit(EXIT_FAILURE);
+        return -1;
     }
-    while (1) {
-        read_return = read(filefd, buffer, BUFSIZ);
-        if (read_return == 0)
-            break;
+    memset(client_message,0,2000);
+    do {
+        read_return = read(socket, buffer, BUFSIZ);
+        //printf("BYTES RECIVED: %d\n", (int) read_return);
+        if((read_return == 4) && (strncmp(buffer,"0xFF",4)==0)){
+            printf("%s Server couldn't find file\n",buffer);
+            close(filefd);
+            remove(filename);
+            return -1;
+        }else if((read_return == 4) && (strncmp(buffer,"0x03",4)==0)){
+            fprintf(stdout,"DONE");
+            close(filefd);
+            return 1;
+        }else if((read_return == 8192) && (strncmp(buffer,"0x02", 4)==0)){
+            // had a problem with the read recive where it would get a full buffer of gibberish, could find out why so just made a condition.
+            memset(buffer, 0, BUFSIZ);
+            continue;
+        }
         if (read_return == -1) {
-            perror("read---filefd");
-            exit(EXIT_FAILURE);
+            perror("read");
+            return -1;
         }
-        if (write(socket, buffer, read_return) == -1) {
+        if (write(filefd, buffer, read_return) == -1) {
             perror("write");
-            exit(EXIT_FAILURE);
+            return -1;
         }
-    }
+        if (read_return == 0){
+            continue;
+        }
+        // reset buffer for fresh read.
+        memset(buffer,0,BUFSIZ);
+    } while (read_return > 0);
     close(filefd);
     return 1;
 }
-/*
+/** Handles incomming signal and closes the socket and then quits server. **/
+void SigHandler(int signo){
+    // Idea for Graceful termination. https://stackoverflow.com/questions/9681531/graceful-shutdown-server-socket-in-linux.
+    // The idea behind is we need to traverse all tid's of all threads open and close their sockets, then join them all to avoid zombie
+    // Threads and then print the XML .dedup file. However I had trouble finding out how to traverse the thread tid's and Oleg never made the xml
+    // writer or parser. So the handler just closes the server side socket which then based on this link: https://stackoverflow.com/questions/11043128/should-java-streams-be-closed-before-the-backing-socket-is-closed/11043520#11043520.
+    // the OS is capable of then closing the stream from the TCP connection and thus freeing up the space and socket.
+    if ((signo == SIGTERM) || (signo == SIGINT)){
+        fprintf(stdout, "Starting safe shutdown..\n");
+        shutdown(serverSocket, 2);
+        exit(EXIT_SUCCESS);
+
+    }
+    perror("Error in gracful termination");
+    exit(EXIT_FAILURE);
+}
+/* This was start of Olegs implementation of md5 hash of the file contents, he never fisnished beyond this.
 int md5Hash(char *filename){
     unsigned char c[MD5_DIGEST_LENGTH];
     int i;
